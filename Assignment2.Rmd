@@ -1,0 +1,263 @@
+---
+title: "Assignment2"
+author: "Jing Xu"
+date: "2022-10-05"
+output: html_document
+---
+
+## Load Package
+
+```{r}
+library(tidyverse)
+# install.packages("Stat2Data")
+library(Stat2Data)
+Hawks <- data("Hawks")
+```
+
+# Data Wrangling
+
+## 1.1 Select and filter
+
+### (Q1)
+
+```{r}
+# head(Hawks)
+hSF <- Hawks %>% filter(Species == "RT" & Weight >= 1000) %>% select(Wing, Weight, Tail)
+head(hSF)
+```
+
+### (Q2)
+
+```{r}
+# how many variables in hSF
+varNum <- ncol(hSF)
+cat("Number of variables in hSF :", varNum)
+rowNum <- nrow(hSF)
+cat("Number of examples in hSF :", rowNum)
+```
+
+## 1.2 The arrange function
+
+### (Q1) Use the arrange() function to sort the hSF data frame
+
+```{r}
+ascHSF <- hSF %>% arrange(Wing)
+head(ascHSF)
+```
+
+## 1.3  Join and rename functions
+
+### Q1
+
+```{r}
+species_code <- c("CH", "RT", "SS")
+species_name_full <- c("Cooper's", "Red-tailed", "Sharp-shinned")
+hawkSpeciesNameCodes <- data.frame(species_code, species_name_full)
+```
+
+### Q2
+
+```{r}
+# head(Hawks)
+hawksFullName <- left_join(Hawks, hawkSpeciesNameCodes, by=c("Species" = "species_code")) %>% 
+  select(-Species) %>% 
+  rename(Species = species_name_full)
+head(hawksFullName)
+```
+
+### Q3
+
+```{r}
+head(hawksFullName, n=7) %>% select(Species, Wing, Weight)
+```
+
+## 1.4  The mutate function
+
+### Q1
+
+```{r}
+hawksWithBMI <- Hawks %>% 
+  mutate(bird_BMI=1000*Weight/(Wing)^2) %>% 
+  select(Species, bird_BMI) %>% 
+  arrange(desc(bird_BMI))
+head(hawksWithBMI, n=8)
+?abs
+```
+
+## 1.5 Summarize and group-by functions
+
+### Q1
+
+```{r}
+#?mean
+#?median
+hawksFullName %>%
+  group_by(Species) %>%
+  summarize(num_rows=n(), mn_wing=mean(Wing, na.rm=TRUE), md_wing=median(Wing, na.rm=TRUE), t_mn_wing=mean(Wing, trim=0.1), b_wt_ratio=max(Wing/Tail, na.rm=TRUE))
+```
+
+### Q2
+
+```{r}
+#?across
+hawksFullName %>%
+  select(Species, Wing, Weight, Culmen, Hallux, Tail, StandardTail, Tarsus, Crop) %>%
+  group_by(Species) %>%
+  summarize(across(everything(), ~sum(is.na(.x))))
+```
+
+# 2. Tidy data and iteration
+
+## 2.1 Missing data and iteration
+
+### Q1
+
+We need to load 'tidyverse' library.
+
+### Q2
+
+```{r}
+impute_by_median <- function(x) {
+  md <- median(x, na.rm = 1)
+  impute_f <- function(z) {
+    if (is.na(z)) {
+      return (md)
+    } else {
+      return (z)
+    }
+  }
+  return (map_dbl(x, impute_f))
+}
+v<-c(1,2,NA,4)
+impute_by_median(v)
+```
+
+### Q3
+
+```{r}
+?map
+?list
+x<-seq(0, 10, 0.1)
+y<-seq(1, 51, 0.5)
+df_xy <- data.frame(x,y)
+map2sum <- map2_dbl(x, y, ~ .x+.y)
+res <- data.frame(x,y,map2sum)
+head(res)
+```
+
+### Q4
+
+```{r}
+sometimes_missing <- function(idx, val) {
+  if (idx%%5 == 0) {
+    return (NA)
+  } else {
+    return (val)
+  }
+}
+sometimes_missing(14,25)
+sometimes_missing(15,25)
+#?data.frame
+df_xy_missing <- data.frame(x,y) %>% mutate(y=map2_dbl(row_number(y), y, sometimes_missing))
+head(df_xy_missing, n=10)
+```
+
+### Q5
+
+```{r}
+df_xy_imputed <- df_xy_missing %>% mutate(y=impute_by_median(df_xy_missing$y))
+head(df_xy_imputed)
+```
+
+## 2.2 Tidying data with pivot functions
+
+```{r}
+#install.packages("readxl")
+library(readxl)
+library(tidyverse)
+wins_data_frame <- read_excel("/Users/xujing/Documents/DS/SCEM/SCEM/HockeyLeague.xlsx")
+wins_data_frame %>%
+  select(1:5) %>%
+  head(3)
+```
+
+### Q1
+
+```{r}
+wins_tidy <- wins_data_frame %>%
+  rename(Team=1) %>%
+  pivot_longer(2:ncol(wins_data_frame), names_to = 'Year', values_to = 'value') %>%
+  separate(value, into = c('Wins', 'Total'), sep = 'of', convert = TRUE)
+wins_tidy %>% dim()
+head(wins_tidy, n=5)
+```
+
+### Q2
+
+```{r}
+losses_data_frame <- read_excel("/Users/xujing/Documents/DS/SCEM/SCEM/HockeyLeague.xlsx", "Losses")
+losses_tidy <- losses_data_frame %>%
+  rename(Team=1) %>%
+  pivot_longer(2:ncol(losses_data_frame), names_to = 'Year', values_to = 'value') %>%
+  separate(value, into = c('Losses', 'Total'), sep = 'of', convert = TRUE)
+losses_tidy %>% dim()
+head(losses_tidy, n=5)
+```
+
+### Q3
+
+```{r}
+hockey_df <- wins_tidy %>% 
+    left_join(losses_tidy %>% select(-Total), by=c("Team" = "Team", "Year" = "Year")) %>% 
+    mutate(Draw=Total-Wins-Losses, Wins_rt=Wins/Total, Losses_rt=Losses/Total, Draws_rt=Draw/Total)
+hockey_df %>% head(5)
+```
+
+### Q4
+
+```{r}
+hockey_df %>%
+    select(Team, Wins_rt, Losses_rt, Draws_rt) %>%
+    rename(W = Wins_rt, L = Losses_rt, D = Draws_rt) %>%
+    group_by(Team) %>%
+    summarize(across(everything(), ~median(.), .names = "{.col}_md"), across(W:D, ~mean(.), .names = "{.col}_mn")) %>%
+    arrange(desc(W_md))
+```
+
+# 3. Visualisation
+
+## Q1
+
+```{r}
+library(ggplot2)
+wins_plot = wins_tidy %>%
+    filter(Team=="Ducks") %>%
+    ggplot(aes(x=Wins)) + xlab("wins") 
+wins_plot + geom_histogram(binwidth = 3) + ylab("Count")  
+```
+
+## Q2
+
+The parameter 'adjust' in the function 'geom_density' control the smoothness of the curve, the bigger value of the adjust, the more smooth the curve is.
+
+```{r}
+wins_plot + geom_density(adjust=0.5) + ylab("Count")
+wins_plot + geom_density(adjust=2) + ylab("Count")
+```
+
+## Q3
+
+```{r}
+?pivot_wider
+wins_teams <- wins_tidy %>%
+    select(-Total) %>%
+    pivot_wider(names_from = Team, values_from = Wins)
+head(wins_teams)
+wins_teams %>% ggplot(aes(y=Eagles, x=Ducks)) + xlab("Ducks") + ylab("Eagles") + geom_point()
+```
+
+
+
+
+
+
