@@ -1,0 +1,269 @@
+---
+title: "Assignment3"
+author: "Jing Xu"
+date: "2022-10-12"
+output:
+  html_document: default
+  pdf_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# 1. Exploratory data analysis
+
+```{r}
+library(tidyverse)
+library(Stat2Data)
+data("Hawks")
+```
+
+## 1.1 (Q1)   
+
+<!-- Include your answers for each question under a second level heading eg ## 1.1 (Q1) -->
+```{r}
+head(Hawks)
+HawksTail <- Hawks$Tail
+HawksTail <- HawksTail[!is.na(HawksTail)] # remove any nans
+head(HawksTail)
+mean(HawksTail)
+median(HawksTail)
+```
+
+## 1.2 (Q1)
+
+```{r}
+Hawks %>% summarise(Wing_mean=mean(Wing, na.rm=TRUE), Wing_t_mean=mean(Wing, na.rm=TRUE, trim=0.5), Wing_med=median(Wing, na.rm = TRUE), Weight_mean=mean(Weight, na.rm=TRUE), Weight_t_mean=mean(Weight, na.rm=TRUE, trim=0.5), Weight_med=median(Weight, na.rm = TRUE))
+```
+The table above shows that the trimmed mean of Wing equals the median of Wing, while the mean of Wing is obviously smaller than both of them. It means that there is an outlier with much smaller value than the rest of the values in Wing. So as to the Weight.
+
+## 1.2 (Q2)
+
+```{r}
+Hawks %>% group_by(Species) %>% summarise(Wing_mean=mean(Wing, na.rm=TRUE), Wing_t_mean=mean(Wing, na.rm=TRUE, trim=0.5), Wing_med=median(Wing, na.rm = TRUE), Weight_mean=mean(Weight, na.rm=TRUE), Weight_t_mean=mean(Weight, na.rm=TRUE, trim=0.5), Weight_med=median(Weight, na.rm = TRUE))
+```
+
+## 1.3 (Q1)
+
+\[ The\ sample\ mean\ of\ \tilde{X_{1}},...,\tilde{X_{n}} = aA+b \]
+
+Verify my conclusion above:
+```{r}
+mean(HawksTail, na.rm = TRUE)
+mean(HawksTail*2+3, na.rm=TRUE)
+```
+198.8315*2+3=400.663, so my conclusion is right.
+
+## 1.3 (Q2)
+
+```{r}
+var(HawksTail*2+3, na.rm = TRUE)
+sd(HawksTail*2+3, na.rm = TRUE)
+```
+
+## 1.4 (Q1)
+
+The example:
+```{r}
+hal <- Hawks$Hallux
+hal <- hal[!is.na(hal)]
+outlier_val <- 100
+num_outliers <- 10
+corrupted_hal <- c(hal, rep(outlier_val, times=num_outliers))
+mean(hal)
+mean(corrupted_hal)
+num_outliers_vect <- seq(0, 1000)
+means_vect <- c()
+for(num_outliers in num_outliers_vect) {
+  corrupted_hal <- c(hal, rep(outlier_val, times=num_outliers))
+  means_vect <- c(means_vect, mean(corrupted_hal))
+}
+```
+
+
+```{r}
+medians_vect <- c()
+for(num_outliers in num_outliers_vect) {
+  corrupted_hal <- c(hal, rep(outlier_val, times=num_outliers))
+  medians_vect <- c(medians_vect, median(corrupted_hal))
+}
+
+t_means_vect <- c()
+for(num_outliers in num_outliers_vect) {
+  corrupted_hal <- c(hal, rep(outlier_val, times=num_outliers))
+  t_means_vect <- c(t_means_vect, mean(corrupted_hal, trim = 0.1))
+}
+
+df_means_medians <- data.frame(num_outliers=num_outliers_vect, mean=means_vect, t_mean=t_means_vect, median=medians_vect)
+
+df_means_medians %>%
+  pivot_longer(!num_outliers, names_to = "Estimator", values_to = "Value") %>%
+  ggplot(aes(x=num_outliers, color=Estimator, linetype=Estimator, y=Value)) + 
+  geom_line() + xlab("Number of outliers")
+```
+
+**Parently, median is the most robust when the number of outliers is small. **
+
+
+## 1.5 (Q1)
+
+```{r}
+ggplot(data = Hawks, aes(x=Species, y=Weight)) +
+  geom_boxplot() + xlab("Species") + ylab("Weight")
+```
+
+## 1.5 (Q2)
+
+```{r}
+Hawks %>% group_by(Species) %>%
+  summarize(quantile025=quantile(Weight, probs=c(0.25), na.rm=TRUE), quantile050=quantile(Weight, probs=c(0.5), na.rm=TRUE), quantile075=quantile(Weight, probs=c(0.75), na.rm=TRUE))
+```
+
+The value of quantile025 equals to the value of the bottom line of the boxplot, the value of quantile050 equals to the value of the bold line inside the boxplot, and the value of quantile075 equals to the value of the top line of the boxplot,
+
+## 1.5 (Q3)
+
+```{r}
+num_outliers <- function(sample) {
+  sample <- sample[!is.na(sample)]
+  num <- 0
+  q25 <- quantile(sample, 0.25, na.rm = TRUE)
+  q75 <- quantile(sample, 0.75, na.rm = TRUE)
+  iqr <- q75 - q25
+  for(val in sample) {
+    if((val < q25-1.5*iqr) || (val > q75+1.5*iqr)) {
+      num <- num + 1
+    }
+  }
+  
+  return (num)
+}
+
+num_outliers(c(0, 40, 60, 185))
+```
+
+
+## 1.5 (Q4)
+
+```{r}
+Hawks %>% group_by(Species) %>%
+  summarise(num_outliers_weight=num_outliers(Weight))
+```
+
+## 1.6 (Q1)
+
+```{r}
+cov(Hawks$Weight, Hawks$Wing, use = "complete.obs")
+cor(Hawks$Weight, Hawks$Wing, use = "complete.obs")
+```
+
+## 1.6 (Q2)
+
+The covariance between the new X and new Y = a*c*S
+|The correlation between new X and new Y| = S
+
+```{r}
+cov(Hawks$Weight*2.4+7.1, Hawks$Wing*-1+3, use = "complete.obs")
+cor(Hawks$Weight*2.4+7.1, Hawks$Wing*-1+3, use = "complete.obs")
+```
+
+
+# 2. Random experiments, events and sample spaces, and the set theory
+
+## 2.1 (Q1)
+
+A random experiment is a procedure (real or imagined) which:
+1. has a well-defined set of possible outcomes;
+2. could (at least in principle) be repeated arbitrarily many times.
+
+An event is a set of possible outcomes of an experiment.
+
+A sample space is the set of all possible outcomes of interest for a random experiment.
+
+## 2.1 (Q2)
+
+An event could be the first time and the second time both get 6.
+The sample space is {1,2,3,4,5,6}.
+The total number of different events in this experiment is 36.
+No.
+
+## 2.2 (Q1)
+
+Given sets A:={1,2,3}, B:={2,4,6}, C:={4,5,6}
+
+1. \[A\cup B = \{1,2,3,4,6\} \] and \[A\cup C = \{1,2,3,4,5,6\} \]
+2. \[A ∩ B = \{2\} \] and \[A ∩ C = Ø \]
+3. A\\B = {1,3} and A\\C = {1,2,3}
+4. A and B are not disjoint, while A and C is disjoint.
+5. B and A\\B is disjoint.
+6. partition of {1,2,3,4,5,6} consisting of two sets: {1,2,3},{4,5};
+   partition of {1,2,3,4,5,6} consisting of three sets: {1},{2},{3,4,5}.
+
+## 2.2 (Q2)
+
+1. \[(A^c)^c := A\]
+2. Empty set (∅).
+3. \[A^c:=\{w\in Ω :w\notin A\}, B^c:=\{w\in Ω :w\notin B\}\] hence if\[A⊆B\] then \[B^c ⊆ A^c\]
+4. \[(∩_{k=1}^K A_{k})^c = \cup_{k=1}^KA_{k}^c\]
+6. \[(\cup_{k=1}^KA_{k}^c)^c = ∩_{k=1}^K A_{k}^c \]
+
+## 2.2 (Q3)
+
+\[ The\ cardinality\ of\ E\ = 2^K-1 \]
+
+## 2.2 (Q4)
+
+1. ∅.
+
+## 2.2 (Q5)
+
+1. \[1_{A^c} = 1-1_{A} \]
+2. When B is Ω.
+3. First \[1_{(A∩B)^c} = 1-1_{A∩B} = 1-1_A·1_B\] meanwhile \[ 1_{A^c \cup B^c} = 1_{A^c} + 1_{B^c} - 1_{A^c}·1_{B^c} = 1-1_{A}+1-1_{B}-(1-1_{A})·(1-1_{B}) = 1-1_A·1_B \] hence \[(A∩B)^c = A^c \cup B^c\]
+
+## 2.2 (Q6)
+
+[1,2] for all real numbers is uncountably infinite. (Actually I don't know how to prove it :( )
+
+
+# 3. Visualisation
+
+## 3 (Q1)
+```{r}
+ ggplot(data=Hawks, aes(x=Tail, color=Species)) + xlab("Tail (mm)") + ylab("Density") + geom_density() + theme_bw()
+```
+
+## 3 (Q2)
+```{r}
+ ggplot(data=Hawks, aes(x=Tail, y=Species, fill=Species)) + xlab("Tail (mm)") + ylab("Density") + geom_violin() + theme_bw()
+```
+
+## 3 (Q3)
+
+```{r}
+ggplot(data=Hawks, aes(x=Tail, y=Weight)) + xlab("Tail (mm)") + ylab("Weight (mm)") + geom_point(aes(color=Species, shape=Species))
+```
+
+1. Three.
+2. Circle, triangle, and square.
+3. Points, colors, shapes, and annotation.
+
+## 3 (Q4)
+
+```{r}
+ggplot(data=Hawks, aes(x=Tail, y=Weight, color=Species)) + xlab("Tail (mm)") + ylab("Weight (mm)") + geom_point() + geom_smooth(method = lm) + facet_wrap(~Species, scales = "free")
+```
+
+1. Points, trend lines, facets, colors, and annotation.
+2. There is a positive correlation between the weight of the hawks and their tail lengths.
+
+## 3 (Q5)
+```{r}
+heaviest <- Hawks %>% select(Weight, Tail) %>% filter(!is.na(Weight), Weight == max(Hawks$Weight, na.rm = TRUE))
+ggplot(data=Hawks, aes(x=Tail, y=Weight)) + xlab("Tail (mm)") + ylab("Weight (mm)") + geom_point(aes(color=Species)) + 
+    geom_curve(x=heaviest$Tail, xend=heaviest$Tail, y=heaviest$Weight-200, yend=heaviest$Weight, arrow = arrow(length = unit(0.1, 'cm'))) +
+    geom_text(x=heaviest$Tail, y=heaviest$Weight-200, label="heaviest hawk", color="black")
+```
+
+
